@@ -20,6 +20,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// ---------------- CONSTANTS ----------------
 const ADMIN_UID = "m1rddMA36WbVunFW3B0BzuqOwyI2";
 let currentUser = null;
 const root = document.getElementById("root");
@@ -27,12 +28,11 @@ const root = document.getElementById("root");
 // ---------------- MODE ----------------
 let mode = localStorage.getItem("mode") || "dark";
 document.body.classList.add(mode+"-mode");
-function toggleMode(){
+function toggleMode() {
     mode = mode==="dark"?"light":"dark";
     document.body.classList.toggle("dark-mode");
     document.body.classList.toggle("light-mode");
     localStorage.setItem("mode",mode);
-    renderLanding();
 }
 
 // ---------------- HELPER ----------------
@@ -49,7 +49,7 @@ function el(tag,attrs={},children=[]){
 }
 
 // ---------------- AUTH ----------------
-document.addEventListener("DOMContentLoaded",renderLanding);
+document.addEventListener("DOMContentLoaded", renderLanding);
 onAuthStateChanged(auth,u=>{
     currentUser = u;
     if(u){
@@ -88,7 +88,7 @@ function renderLanding(){
     root.append(container);
 
     document.getElementById("go-signup").onclick = e=>{
-        e.preventDefault(); login.style.display="none"; signup.style.display="block";
+        e.preventDefault(); login.style.display="none"; signup.style.display="block"; 
         modeBtn.textContent = mode==="dark"?"Light Mode":"Dark Mode";
     };
     document.getElementById("go-login").onclick = e=>{
@@ -124,7 +124,7 @@ function renderDashboard(){
         el("div",{cls:"brand"},"StudyTracker"),
         el("div",{cls:"flex gap-2"},[
             el("button",{cls:"neon-btn",onclick:()=>renderProfile()},"Profile"),
-            el("button",{cls:"neon-btn",onclick:async()=>{await signOut(auth); renderLanding();}},"Logout"),
+            el("button",{cls:"neon-btn",onclick:logout},"Logout"),
             el("div",{id:"realtime-time"})
         ])
     ]);
@@ -133,6 +133,8 @@ function renderDashboard(){
     const dash = el("div",{cls:"dashboard"});
     frame.appendChild(dash);
     root.append(frame);
+
+    function logout(){ signOut(auth).then(()=>renderLanding()); }
 
     // realtime clock
     const timeDiv = document.getElementById("realtime-time");
@@ -157,6 +159,85 @@ function renderDashboard(){
 
     dash.append(el("canvas",{id:"weeklyChart"}),el("canvas",{id:"monthlyChart"}));
     renderCharts();
+}
+
+// ---------------- PROFILE ----------------
+function renderProfile(){
+    if(!root) return;
+    root.innerHTML="";
+    const frame = el("div",{cls:"app-frame"});
+    const top = el("div",{cls:"topbar"},[
+        el("div",{cls:"brand"},"Profile"),
+        el("div",{cls:"flex gap-2"},[
+            el("button",{cls:"neon-btn",onclick:renderDashboard},"Back"),
+            el("button",{cls:"neon-btn",onclick:()=>signOut(auth).then(()=>renderLanding())},"Logout")
+        ])
+    ]);
+    frame.appendChild(top);
+    root.append(frame);
+
+    const prof = el("div",{cls:"dashboard"});
+    frame.appendChild(prof);
+
+    const docRef = doc(db,"users",currentUser.uid);
+    getDoc(docRef).then(d=>{
+        if(!d.exists()) return;
+        const data=d.data();
+        const firstNameInput = el("input",{value:data.firstName,cls:"form-field"});
+        const lastNameInput = el("input",{value:data.lastName,cls:"form-field"});
+        const emailInput = el("input",{value:data.email,cls:"form-field",disabled:true});
+        const pwInput = el("input",{type:"password",cls:"form-field",placeholder:"New password"});
+        const saveBtn = el("button",{cls:"neon-btn"},"Save Changes");
+
+        prof.append(
+            el("label",{},["First Name"]), firstNameInput,
+            el("label",{},["Last Name"]), lastNameInput,
+            el("label",{},["Email"]), emailInput,
+            el("label",{},["Password"]), pwInput,
+            saveBtn
+        );
+
+        saveBtn.onclick=async ()=>{
+            await updateDoc(docRef,{firstName:firstNameInput.value,lastName:lastNameInput.value});
+            if(pwInput.value) await updatePassword(auth.currentUser,pwInput.value);
+            alert("Profile updated!"); renderDashboard();
+        }
+    });
+}
+
+// ---------------- ADMIN DASHBOARD ----------------
+async function renderAdminDashboard(){
+    if(!root) return;
+    root.innerHTML="";
+    const frame=el("div",{cls:"app-frame"});
+    const top=el("div",{cls:"topbar"},[
+        el("div",{cls:"brand"},"Admin Dashboard"),
+        el("div",{cls:"flex gap-2"},[
+            el("button",{cls:"neon-btn",onclick:()=>signOut(auth).then(()=>renderLanding())},"Logout")
+        ])
+    ]);
+    frame.appendChild(top);
+    const dash=el("div",{cls:"dashboard"});
+    frame.appendChild(dash);
+    root.append(frame);
+
+    const usersSnap = await getDocs(collection(db,"users"));
+    usersSnap.forEach(u=>{
+        const udata = u.data();
+        const item = el("div",{cls:"user-item"},[
+            el("span",{},`${udata.firstName} ${udata.lastName} (${udata.email})`),
+            el("button",{cls:"neon-btn",onclick:()=>deleteUser(u.id)},"Delete"),
+        ]);
+        dash.append(item);
+    });
+}
+
+async function deleteUser(uid){
+    if(!confirm("Delete this user?")) return;
+    await deleteDoc(doc(db,"users",uid));
+    const logsSnap=await getDocs(query(collection(db,"studyLogs"),where("userId","==",uid)));
+    for(const log of logsSnap.docs) await deleteDoc(doc(db,"studyLogs",log.id));
+    alert("Deleted!"); renderAdminDashboard();
 }
 
 // ---------------- CHARTS ----------------
@@ -190,78 +271,4 @@ async function renderCharts(){
         type:"line",
         data:{labels:monthLabels,datasets:[{label:"Hours",data:monthlyData,borderColor:"#00f0ef",backgroundColor:"#8b5cf6"}]},
     });
-}
-
-// ---------------- PROFILE ----------------
-function renderProfile(){
-    if(!root) return; root.innerHTML="";
-    const frame = el("div",{cls:"app-frame"});
-    const top = el("div",{cls:"topbar"},[
-        el("div",{cls:"brand"},"Profile"),
-        el("div",{cls:"flex gap-2"},[
-            el("button",{cls:"neon-btn",onclick:()=>renderDashboard()},"Back"),
-            el("button",{cls:"neon-btn",onclick:async()=>{await signOut(auth); renderLanding();}},"Logout")
-        ])
-    ]);
-    frame.appendChild(top);
-    root.append(frame);
-    const prof = el("div",{cls:"dashboard"}); frame.appendChild(prof);
-
-    const docRef = doc(db,"users",currentUser.uid);
-    getDoc(docRef).then(d=>{
-        if(!d.exists()) return;
-        const data=d.data();
-        const firstNameInput = el("input",{value:data.firstName,cls:"form-field"});
-        const lastNameInput = el("input",{value:data.lastName,cls:"form-field"});
-        const emailInput = el("input",{value:data.email,cls:"form-field",disabled:true});
-        const pwInput = el("input",{type:"password",cls:"form-field",placeholder:"New password"});
-        const saveBtn = el("button",{cls:"neon-btn"},"Save Changes");
-
-        prof.append(
-            el("label",{},["First Name"]), firstNameInput,
-            el("label",{},["Last Name"]), lastNameInput,
-            el("label",{},["Email"]), emailInput,
-            el("label",{},["Password"]), pwInput,
-            saveBtn
-        );
-
-        saveBtn.onclick=async ()=>{
-            await updateDoc(docRef,{firstName:firstNameInput.value,lastName:lastNameInput.value});
-            if(pwInput.value) await updatePassword(auth.currentUser,pwInput.value);
-            alert("Profile updated!"); renderDashboard();
-        }
-    });
-}
-
-// ---------------- ADMIN ----------------
-async function renderAdminDashboard(){
-    if(!root) return; root.innerHTML="";
-    const frame=el("div",{cls:"app-frame"});
-    const top = el("div",{cls:"topbar"},[
-        el("div",{cls:"brand"},"Admin Dashboard"),
-        el("div",{cls:"flex gap-2"},[
-            el("button",{cls:"neon-btn",onclick:async()=>{await signOut(auth); renderLanding();}},"Logout")
-        ])
-    ]);
-    frame.appendChild(top);
-    root.append(frame);
-    const dash = el("div",{cls:"dashboard"}); frame.appendChild(dash);
-
-    const usersSnap = await getDocs(collection(db,"users"));
-    usersSnap.forEach(u=>{
-        const udata = u.data();
-        const item = el("div",{cls:"user-item"},[
-            el("span",{},`${udata.firstName} ${udata.lastName} (${udata.email})`),
-            el("button",{cls:"neon-btn",onclick:()=>deleteUser(u.id)},"Delete")
-        ]);
-        dash.append(item);
-    });
-}
-
-async function deleteUser(uid){
-    if(!confirm("Delete this user?")) return;
-    await deleteDoc(doc(db,"users",uid));
-    const logsSnap = await getDocs(query(collection(db,"studyLogs"),where("userId","==",uid)));
-    for(const log of logsSnap.docs) await deleteDoc(doc(db,"studyLogs",log.id));
-    alert("Deleted!"); renderAdminDashboard();
 }
