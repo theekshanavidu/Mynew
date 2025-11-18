@@ -1,9 +1,6 @@
-// --- FIXED VERSION OF app.js ---
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, addDoc, collection, getDocs, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // Firebase config
 const firebaseConfig = {
@@ -20,7 +17,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_UID = "m1rddMA36WbVunFW3B0BzuqOwyI2";
-
 let currentUser = null;
 
 // Short helper
@@ -38,21 +34,15 @@ function el(tag, attrs={}, children=[]){
 
 const root = document.getElementById("root");
 
-
-// 🔥 FIX: ALWAYS RENDER LOGIN WHEN PAGE LOADS
-document.addEventListener("DOMContentLoaded", () => {
-    renderLanding();
-});
-
+// 🔥 Render landing on page load
+document.addEventListener("DOMContentLoaded", renderLanding);
 
 // ---------------- AUTH LISTENER ----------------
-onAuthStateChanged(auth, u=>{
-    currentUser = u;
-    if(u && u.uid===ADMIN_UID) u.displayName = "Admin";
-
-    if(u) renderDashboard();
+onAuthStateChanged(auth, user=>{
+    currentUser = user;
+    if(user && user.uid===ADMIN_UID) user.displayName = "Admin";
+    if(user) renderDashboard();
 });
-
 
 // ---------------- LANDING PAGE ----------------
 function renderLanding(){
@@ -64,12 +54,10 @@ function renderLanding(){
     frame.appendChild(top);
 
     const panel = el("div",{cls:"split-container panel"});
-
     const left = el("div",{cls:"left"},[
         el("h2",{},["WELCOME BACK!"]),
         el("p",{},["Login or sign up to continue."])
     ]);
-
     const right = el("div",{cls:"right"});
 
     // LOGIN FORM
@@ -90,44 +78,19 @@ function renderLanding(){
     // SIGNUP FORM
     const signup = el("form",{id:"signup-form",style:"display:none"});
     signup.append(
-        el("div",{cls:"form-field"},[
-            el("label",{},["First Name"]),
-            el("input",{name:"firstName",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Last Name"]),
-            el("input",{name:"lastName",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Birthday"]),
-            el("input",{name:"birthday",type:"date",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["School"]),
-            el("input",{name:"school",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Phone"]),
-            el("input",{name:"phone",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Exam Year"]),
-            el("input",{name:"examYear",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Email"]),
-            el("input",{name:"email",type:"email",required:true})
-        ]),
-        el("div",{cls:"form-field"},[
-            el("label",{},["Password"]),
-            el("input",{name:"password",type:"password",required:true})
-        ]),
+        el("div",{cls:"form-field"},[ el("label",{},["First Name"]), el("input",{name:"firstName",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Last Name"]), el("input",{name:"lastName",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Birthday"]), el("input",{name:"birthday",type:"date",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["School"]), el("input",{name:"school",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Phone"]), el("input",{name:"phone",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Exam Year"]), el("input",{name:"examYear",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Email"]), el("input",{name:"email",type:"email",required:true}) ]),
+        el("div",{cls:"form-field"},[ el("label",{},["Password"]), el("input",{name:"password",type:"password",required:true}) ]),
         el("button",{cls:"neon-btn",type:"submit"},"Sign Up"),
         el("div",{cls:"small-link",html:`Have an account? <a href="#" id="go-login">Login</a>`})
     );
 
     right.append(login, signup);
-
     panel.append(left, right);
     frame.append(panel);
     root.append(frame);
@@ -138,7 +101,6 @@ function renderLanding(){
         signup.style.display="block";
         login.style.display="none";
     };
-
     document.getElementById("go-login").onclick = e=>{
         e.preventDefault();
         signup.style.display="none";
@@ -148,8 +110,8 @@ function renderLanding(){
     // LOGIN SUBMIT
     login.onsubmit = async e=>{
         e.preventDefault();
+        const f = e.target;
         try{
-            const f = e.target;
             await signInWithEmailAndPassword(auth,f.email.value,f.password.value);
         }catch(err){ alert(err.message); }
     };
@@ -158,14 +120,9 @@ function renderLanding(){
     signup.onsubmit = async e=>{
         e.preventDefault();
         const f = e.target;
-
         try{
             const cred = await createUserWithEmailAndPassword(auth,f.email.value,f.password.value);
-
-            await updateProfile(cred.user,{
-                displayName: f.firstName.value+" "+f.lastName.value
-            });
-
+            await updateProfile(cred.user,{displayName:f.firstName.value+" "+f.lastName.value});
             await setDoc(doc(db,"users",cred.user.uid),{
                 firstName:f.firstName.value,
                 lastName:f.lastName.value,
@@ -176,13 +133,25 @@ function renderLanding(){
                 email:f.email.value,
                 createdAt:new Date().toISOString()
             });
-
         }catch(err){ alert(err.message); }
     };
 }
 
-
 // ---------------- DASHBOARD ----------------
 function renderDashboard(){
-    root.innerHTML = `<div class="text-center text-xl">Logged in ✔</div>`;
+    root.innerHTML = `
+        <div class="app-frame">
+            <div class="topbar">
+                <div class="brand">StudyTracker</div>
+                <button id="logout-btn" class="neon-btn">Logout</button>
+            </div>
+            <div class="dashboard">
+                <div class="card">Welcome, ${currentUser.displayName || "User"} ✔</div>
+            </div>
+        </div>
+    `;
+    document.getElementById("logout-btn").onclick = async ()=>{
+        await auth.signOut();
+        renderLanding();
+    };
 }
