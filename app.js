@@ -20,7 +20,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ---------------- CONSTANTS ----------------
 const ADMIN_UID = "m1rddMA36WbVunFW3B0BzuqOwyI2";
 let currentUser = null;
 const root = document.getElementById("root");
@@ -28,10 +27,11 @@ const root = document.getElementById("root");
 // ---------------- MODE ----------------
 let mode = localStorage.getItem("mode") || "dark";
 document.body.classList.add(mode+"-mode");
-function toggleMode() {
+function toggleMode(btn){
     mode = mode==="dark"?"light":"dark";
     document.body.classList.toggle("dark-mode");
     document.body.classList.toggle("light-mode");
+    btn.textContent = mode==="dark"?"Light Mode":"Dark Mode";
     localStorage.setItem("mode",mode);
 }
 
@@ -63,7 +63,7 @@ function renderLanding(){
     if(!root) return;
     root.innerHTML="";
     const container = el("div",{cls:"login-container"});
-    const modeBtn = el("button",{cls:"neon-btn",onclick:toggleMode}, mode==="dark"?"Light Mode":"Dark Mode");
+    const modeBtn = el("button",{cls:"neon-btn",onclick:()=>toggleMode(modeBtn)}, mode==="dark"?"Light Mode":"Dark Mode");
     container.appendChild(modeBtn);
 
     const login = el("form",{id:"login-form"});
@@ -89,11 +89,9 @@ function renderLanding(){
 
     document.getElementById("go-signup").onclick = e=>{
         e.preventDefault(); login.style.display="none"; signup.style.display="block"; 
-        modeBtn.textContent = mode==="dark"?"Light Mode":"Dark Mode";
     };
     document.getElementById("go-login").onclick = e=>{
         e.preventDefault(); signup.style.display="none"; login.style.display="block";
-        modeBtn.textContent = mode==="dark"?"Light Mode":"Dark Mode";
     };
 
     login.onsubmit = async e=>{
@@ -123,8 +121,8 @@ function renderDashboard(){
     const top = el("div",{cls:"topbar"},[
         el("div",{cls:"brand"},"StudyTracker"),
         el("div",{cls:"flex gap-2"},[
-            el("button",{cls:"neon-btn",onclick:()=>renderProfile()},"Profile"),
-            el("button",{cls:"neon-btn",onclick:logout},"Logout"),
+            el("button",{cls:"neon-btn",onclick:renderProfile},"Profile"),
+            el("button",{cls:"neon-btn",onclick:()=>signOut(auth).then(()=>renderLanding())},"Logout"),
             el("div",{id:"realtime-time"})
         ])
     ]);
@@ -133,8 +131,6 @@ function renderDashboard(){
     const dash = el("div",{cls:"dashboard"});
     frame.appendChild(dash);
     root.append(frame);
-
-    function logout(){ signOut(auth).then(()=>renderLanding()); }
 
     // realtime clock
     const timeDiv = document.getElementById("realtime-time");
